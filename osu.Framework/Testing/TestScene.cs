@@ -230,8 +230,7 @@ namespace osu.Framework.Testing
             {
                 if (loadableStep != null)
                 {
-                    if (loadableStep.IsMaskedAway)
-                        scroll.ScrollTo(loadableStep);
+                    scroll.ScrollIntoView(loadableStep);
                     loadableStep.PerformStep();
                 }
             }
@@ -327,10 +326,6 @@ namespace osu.Framework.Testing
             });
         });
 
-        [Obsolete("Parameter order didn't match other methods – switch order to fix")]
-        protected void AddUntilStep(Func<bool> waitUntilTrueDelegate, string description = null)
-            => AddUntilStep(description, waitUntilTrueDelegate);
-
         protected void AddUntilStep(string description, Func<bool> waitUntilTrueDelegate) => schedule(() =>
         {
             StepsContainer.Add(new UntilStepButton(waitUntilTrueDelegate)
@@ -338,10 +333,6 @@ namespace osu.Framework.Testing
                 Text = description ?? @"Until",
             });
         });
-
-        [Obsolete("Parameter order didn't match other methods – switch order to fix")]
-        protected void AddWaitStep(int waitCount, string description = null)
-            => AddWaitStep(description, waitCount);
 
         protected void AddWaitStep(string description, int waitCount) => schedule(() =>
         {
@@ -351,7 +342,7 @@ namespace osu.Framework.Testing
             });
         });
 
-        protected void AddSliderStep<T>(string description, T min, T max, T start, Action<T> valueChanged) where T : struct, IComparable, IConvertible => schedule(() =>
+        protected void AddSliderStep<T>(string description, T min, T max, T start, Action<T> valueChanged) where T : struct, IComparable<T>, IConvertible, IEquatable<T> => schedule(() =>
         {
             StepsContainer.Add(new StepSlider<T>(description, min, max, start)
             {

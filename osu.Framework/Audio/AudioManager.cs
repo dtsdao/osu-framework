@@ -103,11 +103,6 @@ namespace osu.Framework.Audio
 
             AudioDevice.ValueChanged += onDeviceChanged;
 
-            trackStore.AddExtension(@"mp3");
-
-            sampleStore.AddExtension(@"wav");
-            sampleStore.AddExtension(@"mp3");
-
             globalTrackStore = new Lazy<TrackStore>(() =>
             {
                 var store = new TrackStore(trackStore);
@@ -165,7 +160,7 @@ namespace osu.Framework.Audio
         /// Regarding the .Skip(1) as implementation for removing "No Sound", see http://bass.radio42.com/help/html/e5a666b4-1bdd-d1cb-555e-ce041997d52f.htm.
         /// </remarks>
         /// <returns>A list of the names of recognized audio devices.</returns>
-        private IEnumerable<string> getDeviceNames(List<DeviceInfo> devices) => devices.Skip(1).Select(d => d.Name);
+        private IEnumerable<string> getDeviceNames(IEnumerable<DeviceInfo> devices) => devices.Skip(1).Select(d => d.Name);
 
         /// <summary>
         /// Obtains the <see cref="TrackStore"/> corresponding to a given resource store.
@@ -195,14 +190,11 @@ namespace osu.Framework.Audio
             return sm;
         }
 
-        private List<DeviceInfo> getAllDevices()
+        private IEnumerable<DeviceInfo> enumerateAllDevices()
         {
             int deviceCount = Bass.DeviceCount;
-            List<DeviceInfo> info = new List<DeviceInfo>();
             for (int i = 0; i < deviceCount; i++)
-                info.Add(Bass.GetDeviceInfo(i));
-
-            return info;
+                yield return Bass.GetDeviceInfo(i);
         }
 
         private bool setAudioDevice(string preferredDevice = null)
@@ -299,7 +291,7 @@ namespace osu.Framework.Audio
 
         private void updateAvailableAudioDevices()
         {
-            var currentDeviceList = getAllDevices().Where(d => d.IsEnabled).ToList();
+            var currentDeviceList = enumerateAllDevices().Where(d => d.IsEnabled).ToList();
             var currentDeviceNames = getDeviceNames(currentDeviceList).ToList();
 
             var newDevices = currentDeviceNames.Except(audioDeviceNames).ToList();
@@ -333,7 +325,7 @@ namespace osu.Framework.Audio
                     {
                         if (!device.IsEnabled || !setAudioDevice(device.Name))
                         {
-                            foreach (var d in getAllDevices())
+                            foreach (var d in enumerateAllDevices())
                             {
                                 if (d.Name == device.Name || !d.IsEnabled)
                                     continue;
@@ -353,7 +345,7 @@ namespace osu.Framework.Audio
                     {
                         if (!device.IsEnabled && !setAudioDevice())
                         {
-                            foreach (var d in getAllDevices())
+                            foreach (var d in enumerateAllDevices())
                             {
                                 if (d.Name == device.Name || !d.IsEnabled)
                                     continue;
@@ -365,13 +357,13 @@ namespace osu.Framework.Audio
                     }
                     else
                     {
-                        var preferredDevice = getAllDevices().SingleOrDefault(d => d.Name == AudioDevice.Value);
+                        var preferredDevice = enumerateAllDevices().SingleOrDefault(d => d.Name == AudioDevice.Value);
 
                         if (preferredDevice.Name == AudioDevice.Value && preferredDevice.IsEnabled)
                             setAudioDevice(preferredDevice.Name);
                         else if (!device.IsEnabled && !setAudioDevice())
                         {
-                            foreach (var d in getAllDevices())
+                            foreach (var d in enumerateAllDevices())
                             {
                                 if (d.Name == device.Name || !d.IsEnabled)
                                     continue;

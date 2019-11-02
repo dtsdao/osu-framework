@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.ExceptionServices;
 using System.Threading;
 using osuTK;
 using osuTK.Graphics;
@@ -164,7 +165,7 @@ namespace osu.Framework.Graphics.Containers
                     try
                     {
                         if (exception != null)
-                            throw exception;
+                            ExceptionDispatchInfo.Capture(exception).Throw();
 
                         if (!linkedSource.Token.IsCancellationRequested)
                             onLoaded?.Invoke(components);
@@ -233,7 +234,6 @@ namespace osu.Framework.Graphics.Containers
         /// Loads a <see cref="Drawable"/> child. This will not throw in the event of the load being cancelled.
         /// </summary>
         /// <param name="child">The <see cref="Drawable"/> child to load.</param>
-        /// <exception cref="DependencyInjectionException">When a user error occurred during dependency injection.</exception>
         private void loadChild(Drawable child)
         {
             try
@@ -255,7 +255,7 @@ namespace osu.Framework.Graphics.Containers
                     if (e is OperationCanceledException)
                         continue;
 
-                    throw e;
+                    ExceptionDispatchInfo.Capture(e).Throw();
                 }
             }
         }
@@ -636,13 +636,17 @@ namespace osu.Framework.Graphics.Containers
         {
             bool anyAliveChanged = false;
 
-            // checkChildLife may remove a child from internalChildren. In order to not skip children,
-            // we keep track of the original amount children to apply an offset to the iterator
-            int originalCount = internalChildren.Count;
             for (int i = 0; i < internalChildren.Count; i++)
-                anyAliveChanged |= checkChildLife(internalChildren[i + internalChildren.Count - originalCount]);
+            {
+                var state = checkChildLife(internalChildren[i]);
 
-            FrameStatistics.Add(StatisticsCounterType.CCL, originalCount);
+                anyAliveChanged |= state.HasFlag(ChildLifeStateChange.MadeAlive) || state.HasFlag(ChildLifeStateChange.MadeDead);
+
+                if (state.HasFlag(ChildLifeStateChange.Removed))
+                    i--;
+            }
+
+            FrameStatistics.Add(StatisticsCounterType.CCL, internalChildren.Count);
 
             if (anyAliveChanged)
                 childrenSizeDependencies.Invalidate();
@@ -660,8 +664,10 @@ namespace osu.Framework.Graphics.Containers
         /// </summary>
         /// <param name="child">The child to check.</param>
         /// <returns>Whether the child's alive state has changed.</returns>
-        private bool checkChildLife(Drawable child)
+        private ChildLifeStateChange checkChildLife(Drawable child)
         {
+            ChildLifeStateChange state = ChildLifeStateChange.None;
+
             if (child.ShouldBeAlive)
             {
                 if (!child.IsAlive)
@@ -671,11 +677,11 @@ namespace osu.Framework.Graphics.Containers
                         // If we're already loaded, we can eagerly allow children to be loaded
                         loadChild(child);
                         if (child.LoadState < LoadState.Ready)
-                            return false;
+                            return ChildLifeStateChange.None;
                     }
 
                     MakeChildAlive(child);
-                    return true;
+                    state = ChildLifeStateChange.MadeAlive;
                 }
             }
             else
@@ -683,16 +689,26 @@ namespace osu.Framework.Graphics.Containers
                 if (child.IsAlive)
                 {
                     MakeChildDead(child);
-                    return true;
+                    state |= ChildLifeStateChange.MadeDead;
                 }
 
                 if (child.RemoveWhenNotAlive)
                 {
                     removeChildByDeath(child);
+                    state |= ChildLifeStateChange.Removed;
                 }
             }
 
-            return false;
+            return state;
+        }
+
+        [Flags]
+        private enum ChildLifeStateChange
+        {
+            None = 0,
+            MadeAlive = 1,
+            MadeDead = 1 << 1,
+            Removed = 1 << 2,
         }
 
         /// <summary>
@@ -1569,7 +1585,7 @@ namespace osu.Framework.Graphics.Containers
         /// </summary>
         internal event Action OnAutoSize;
 
-        private Cached childrenSizeDependencies = new Cached();
+        private readonly Cached childrenSizeDependencies = new Cached();
 
         public override float Width
         {

@@ -216,8 +216,12 @@ namespace osu.Framework.Tests.Visual.Drawables
         [Test]
         public void TestManyChildrenUnload()
         {
+            int loaded = 0;
+
             AddStep("populate panels", () =>
             {
+                loaded = 0;
+
                 for (int i = 1; i < panel_count; i++)
                     flow.Add(new Container
                     {
@@ -229,7 +233,7 @@ namespace osu.Framework.Tests.Visual.Drawables
                                 RelativeSizeAxes = Axes.Both,
                                 Children = new Drawable[]
                                 {
-                                    new TestBox { RelativeSizeAxes = Axes.Both }
+                                    new TestBox(() => loaded++) { RelativeSizeAxes = Axes.Both }
                                 }
                             }, 500, 2000),
                             new SpriteText { Text = i.ToString() },
@@ -237,21 +241,28 @@ namespace osu.Framework.Tests.Visual.Drawables
                     });
             });
 
-            Func<int> childrenWithAvatarsLoaded = () =>
+            int childrenWithAvatarsLoaded() =>
                 flow.Children.Count(c => c.Children.OfType<DelayedLoadWrapper>().First().Content?.IsLoaded ?? false);
 
-            int loadedCountInitial = 0;
-            int loadedCountSecondary = 0;
+            int loadCount1 = 0;
+            int loadCount2 = 0;
 
-            AddUntilStep("wait some loaded", () => (loadedCountInitial = childrenWithAvatarsLoaded()) > 5);
+            AddUntilStep("wait for load", () => loaded > 0);
 
-            AddStep("scroll down", () => scroll.ScrollToEnd());
+            AddStep("scroll down", () =>
+            {
+                loadCount1 = loaded;
+                scroll.ScrollToEnd();
+            });
 
-            AddUntilStep("wait more loaded", () => (loadedCountSecondary = childrenWithAvatarsLoaded()) > loadedCountInitial);
+            AddUntilStep("more loaded", () =>
+            {
+                loadCount2 = childrenWithAvatarsLoaded();
+                return loaded > loadCount1;
+            });
 
             AddAssert("not too many loaded", () => childrenWithAvatarsLoaded() < panel_count / 4);
-
-            AddUntilStep("wait some unloaded", () => childrenWithAvatarsLoaded() < loadedCountSecondary);
+            AddUntilStep("wait some unloaded", () => childrenWithAvatarsLoaded() < loadCount2);
         }
 
         [Test]
@@ -286,8 +297,7 @@ namespace osu.Framework.Tests.Visual.Drawables
                 }
             });
 
-            Func<int> childrenWithAvatarsLoaded = () =>
-                flow.Children.Count(c => c.Children.OfType<DelayedLoadWrapper>().FirstOrDefault()?.Content?.IsLoaded ?? false);
+            int childrenWithAvatarsLoaded() => flow.Children.Count(c => c.Children.OfType<DelayedLoadWrapper>().FirstOrDefault()?.Content?.IsLoaded ?? false);
 
             AddUntilStep("wait some loaded", () => childrenWithAvatarsLoaded() > 5);
             AddStep("expire wrappers", () => wrappers.ForEach(w => w.Expire()));
@@ -301,14 +311,19 @@ namespace osu.Framework.Tests.Visual.Drawables
 
         public class TestBox : Container
         {
-            public TestBox()
+            private readonly Action onLoadAction;
+
+            public TestBox(Action onLoadAction = null)
             {
+                this.onLoadAction = onLoadAction;
                 RelativeSizeAxes = Axes.Both;
             }
 
             [BackgroundDependencyLoader]
             private void load()
             {
+                onLoadAction?.Invoke();
+
                 Child = new SpriteText
                 {
                     Colour = Color4.Yellow,

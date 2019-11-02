@@ -93,22 +93,20 @@ namespace osu.Framework.Graphics.Visualisation
             {
                 Type type;
 
-                switch (info.MemberType)
+                switch (info)
                 {
-                    case MemberTypes.Property:
-                        PropertyInfo propertyInfo = (PropertyInfo)info;
+                    case PropertyInfo propertyInfo:
                         type = propertyInfo.PropertyType;
                         getValue = () => propertyInfo.GetValue(d);
                         break;
 
-                    case MemberTypes.Field:
-                        FieldInfo fieldInfo = (FieldInfo)info;
+                    case FieldInfo fieldInfo:
                         type = fieldInfo.FieldType;
                         getValue = () => fieldInfo.GetValue(d);
                         break;
 
                     default:
-                        throw new NotImplementedException(@"Not a value member.");
+                        throw new ArgumentException(@"Not a value member.", nameof(info));
                 }
 
                 RelativeSizeAxes = Axes.X;
@@ -183,7 +181,8 @@ namespace osu.Framework.Graphics.Visualisation
                     value = $@"<{((e as TargetInvocationException)?.InnerException ?? e).GetType().ReadableName()} occured during evaluation>";
                 }
 
-                if (!value.Equals(lastValue))
+                // An alternative of object.Equals, which is banned.
+                if (!EqualityComparer<object>.Default.Equals(value, lastValue))
                 {
                     changeMarker.ClearTransforms();
                     changeMarker.Alpha = 0.8f;

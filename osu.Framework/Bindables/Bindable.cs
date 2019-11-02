@@ -67,7 +67,7 @@ namespace osu.Framework.Bindables
         /// <summary>
         /// Check whether the current <see cref="Value"/> is equal to <see cref="Default"/>.
         /// </summary>
-        public virtual bool IsDefault => Equals(value, Default);
+        public virtual bool IsDefault => EqualityComparer<T>.Default.Equals(value, Default);
 
         /// <summary>
         /// Revert the current <see cref="Value"/> to the defined <see cref="Default"/>.
@@ -100,7 +100,7 @@ namespace osu.Framework.Bindables
             TriggerValueChange(previousValue, source ?? this, true, bypassChecks);
         }
 
-        private Cached<WeakReference<Bindable<T>>> weakReferenceCache;
+        private readonly Cached<WeakReference<Bindable<T>>> weakReferenceCache = new Cached<WeakReference<Bindable<T>>>();
 
         private WeakReference<Bindable<T>> weakReference => weakReferenceCache.IsValid ? weakReferenceCache.Value : weakReferenceCache.Value = new WeakReference<Bindable<T>>(this);
 
